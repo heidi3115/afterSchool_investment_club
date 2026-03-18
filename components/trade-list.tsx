@@ -13,9 +13,10 @@ import { supabase } from '../lib/supabase'
 
 interface TradeListProps {
   refreshTrigger?: number
+  isAdmin?: boolean
 }
 
-export default function TradeList({ refreshTrigger }: TradeListProps) {
+export default function TradeList({ refreshTrigger, isAdmin = false }: TradeListProps) {
   const [trades, setTrades] = useState<Trade[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -86,12 +87,14 @@ export default function TradeList({ refreshTrigger }: TradeListProps) {
               <Text style={styles.stockCode}>({item.stock_code})</Text>
             )}
           </View>
-          <TouchableOpacity
-            onPress={() => handleDelete(item.id)}
-            style={styles.deleteButton}
-          >
-            <Text style={styles.deleteButtonText}>삭제</Text>
-          </TouchableOpacity>
+          {isAdmin && (
+              <TouchableOpacity
+                  onPress={() => handleDelete(item.id)}
+                  style={styles.deleteButton}
+              >
+                <Text style={styles.deleteButtonText}>삭제</Text>
+              </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.cardBody}>
