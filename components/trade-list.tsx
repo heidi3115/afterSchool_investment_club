@@ -45,26 +45,17 @@ export default function TradeList({ refreshTrigger, isAdmin = false }: TradeList
   }, [refreshTrigger])
 
   const handleDelete = async (id: string) => {
-    Alert.alert('삭제 확인', '이 거래 내역을 삭제하시겠습니까?', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '삭제',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            const { error } = await supabase.from('trades').delete().eq('id', id)
+    const confirmed = window.confirm('이 거래 내역을 삭제하시겠습니까?')
+    if (!confirmed) return
 
-            if (error) throw error
-
-            Alert.alert('성공', '삭제되었습니다.')
-            fetchTrades()
-          } catch (error) {
-            console.error('Error deleting trade:', error)
-            Alert.alert('오류', '삭제 중 오류가 발생했습니다.')
-          }
-        },
-      },
-    ])
+    try {
+      const { error } = await supabase.from('trades').delete().eq('id', id)
+      if (error) throw error
+      fetchTrades()
+    } catch (error) {
+      console.error('Error deleting trade:', error)
+      window.alert('삭제 중 오류가 발생했습니다.')
+    }
   }
 
   const renderItem = ({ item }: { item: Trade }) => {

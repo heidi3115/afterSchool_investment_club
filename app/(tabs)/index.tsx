@@ -15,7 +15,7 @@ export default function App() {
     const [refreshTrigger, setRefreshTrigger] = useState(0)
     const { width } = useWindowDimensions()
     const isLargeScreen = width >= 768
-    const { isAdmin } = useAdmin()  // 추가
+    const { isAdmin } = useAdmin()
 
     const handleFormSuccess = () => {
         setRefreshTrigger((prev) => prev + 1)
