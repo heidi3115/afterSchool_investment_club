@@ -19,6 +19,7 @@ interface TradeListProps {
 export default function TradeList({ refreshTrigger, isAdmin = false }: TradeListProps) {
   const [trades, setTrades] = useState<Trade[]>([])
   const [loading, setLoading] = useState(false)
+  const [filter, setFilter] = useState<'all' | 'buy' | 'sell'>('all')
 
   const fetchTrades = async () => {
     setLoading(true)
@@ -39,6 +40,11 @@ export default function TradeList({ refreshTrigger, isAdmin = false }: TradeList
       setLoading(false)
     }
   }
+
+  const filteredTrades = trades.filter(trade => {
+    if (filter === 'all') return true
+    return trade.trade_type === filter
+  })
 
   useEffect(() => {
     fetchTrades()
@@ -62,82 +68,89 @@ export default function TradeList({ refreshTrigger, isAdmin = false }: TradeList
     const isBuy = item.trade_type === 'buy'
 
     return (
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View style={styles.headerLeft}>
-            <View
-              style={[
-                styles.badge,
-                isBuy ? styles.buyBadge : styles.sellBadge,
-              ]}
-            >
-              <Text style={styles.badgeText}>{isBuy ? '매수' : '매도'}</Text>
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.headerLeft}>
+              <View style={[styles.badge, isBuy ? styles.buyBadge : styles.sellBadge]}>
+                <Text style={styles.badgeText}>{isBuy ? '매수' : '매도'}</Text>
+              </View>
+              <Text style={styles.stockName}>{item.stock_name}</Text>
+              {item.stock_code && (
+                  <Text style={styles.stockCode}>({item.stock_code})</Text>
+              )}
             </View>
-            <Text style={styles.stockName}>{item.stock_name}</Text>
-            {item.stock_code && (
-              <Text style={styles.stockCode}>({item.stock_code})</Text>
+            {isAdmin && (
+                <TouchableOpacity
+                    onPress={() => handleDelete(item.id)}
+                    style={styles.deleteButton}
+                >
+                  <Text style={styles.deleteButtonText}>삭제</Text>
+                </TouchableOpacity>
             )}
           </View>
-          {isAdmin && (
-              <TouchableOpacity
-                  onPress={() => handleDelete(item.id)}
-                  style={styles.deleteButton}
-              >
-                <Text style={styles.deleteButtonText}>삭제</Text>
-              </TouchableOpacity>
-          )}
-        </View>
 
-        <View style={styles.cardBody}>
-          <View style={styles.row}>
-            <Text style={styles.label}>거래일</Text>
-            <Text style={styles.value}>{item.trade_date}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>수량</Text>
-            <Text style={styles.value}>{item.quantity.toLocaleString()}주</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>가격</Text>
-            <Text style={styles.value}>
-              {item.price.toLocaleString('ko-KR')}원
-            </Text>
-          </View>
-          <View style={[styles.row, styles.totalRow]}>
-            <Text style={styles.totalLabel}>총 거래금액</Text>
-            <Text style={[styles.totalValue, isBuy ? styles.buyColor : styles.sellColor]}>
-              {item.total_amount.toLocaleString('ko-KR')}원
-            </Text>
-          </View>
-          {item.memo && (
-            <View style={styles.memoContainer}>
-              <Text style={styles.memoLabel}>메모</Text>
-              <Text style={styles.memoText}>{item.memo}</Text>
+          <View style={styles.cardBody}>
+            <View style={styles.row}>
+              <Text style={styles.label}>거래일</Text>
+              <Text style={styles.value}>{item.trade_date}</Text>
             </View>
-          )}
+            <View style={styles.row}>
+              <Text style={styles.label}>수량</Text>
+              <Text style={styles.value}>{item.quantity.toLocaleString()}주</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>가격</Text>
+              <Text style={styles.value}>{item.price.toLocaleString('ko-KR')}원</Text>
+            </View>
+            <View style={[styles.row, styles.totalRow]}>
+              <Text style={styles.totalLabel}>총 거래금액</Text>
+              <Text style={[styles.totalValue, isBuy ? styles.buyColor : styles.sellColor]}>
+                {item.total_amount.toLocaleString('ko-KR')}원
+              </Text>
+            </View>
+            {item.memo && (
+                <View style={styles.memoContainer}>
+                  <Text style={styles.memoLabel}>메모</Text>
+                  <Text style={styles.memoText}>{item.memo}</Text>
+                </View>
+            )}
+          </View>
         </View>
-      </View>
-    )
-  }
-
-  if (trades.length === 0 && !loading) {
-    return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>등록된 매매일지가 없습니다.</Text>
-      </View>
     )
   }
 
   return (
-    <FlatList
-      data={trades}
-      renderItem={renderItem}
-      keyExtractor={(item) => item.id}
-      contentContainerStyle={styles.list}
-      refreshControl={
-        <RefreshControl refreshing={loading} onRefresh={fetchTrades} />
-      }
-    />
+      <View style={{ flex: 1 }}>
+        <View style={styles.filterContainer}>
+          {(['all', 'buy', 'sell'] as const).map((type) => (
+              <TouchableOpacity
+                  key={type}
+                  style={[styles.filterTab, filter === type && styles.filterTabActive]}
+                  onPress={() => setFilter(type)}
+              >
+                <Text style={[styles.filterTabText, filter === type && styles.filterTabTextActive]}>
+                  {type === 'all' ? '전체' : type === 'buy' ? '매수' : '매도'}
+                </Text>
+              </TouchableOpacity>
+          ))}
+        </View>
+
+        {filteredTrades.length === 0 && !loading ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>등록된 매매일지가 없습니다.</Text>
+            </View>
+        ) : (
+            <FlatList
+                data={filteredTrades}
+                renderItem={renderItem}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={styles.list}
+                refreshControl={
+                  <RefreshControl refreshing={loading} onRefresh={fetchTrades} />
+                }
+            />
+        )}
+      </View>
   )
 }
 
@@ -271,5 +284,28 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     color: '#999',
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+    backgroundColor: '#fff',
+  },
+  filterTab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  filterTabActive: {
+    borderBottomWidth: 2,
+    borderBottomColor: '#333',
+  },
+  filterTabText: {
+    fontSize: 14,
+    color: '#999',
+  },
+  filterTabTextActive: {
+    color: '#333',
+    fontWeight: 'bold',
   },
 })
