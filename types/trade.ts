@@ -22,3 +22,11 @@ export interface TradeInput {
   trade_date: string
   memo?: string
 }
+
+export interface TradeHeader {
+  type: 'header'
+  date: string
+  id: string
+}
+
+export type TradeListItem = (Trade & { type: 'trade' }) | TradeHeader

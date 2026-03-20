@@ -8,7 +8,7 @@ import {
   Alert,
   RefreshControl,
 } from 'react-native'
-import { Trade } from '../types/trade'
+import {Trade, TradeListItem} from '../types/trade'
 import { supabase } from '../lib/supabase'
 
 interface TradeListProps {
@@ -46,6 +46,15 @@ export default function TradeList({ refreshTrigger, isAdmin = false }: TradeList
     return trade.trade_type === filter
   })
 
+  const groupedData = filteredTrades.reduce((acc, trade) => {
+    const date = trade.trade_date
+    if (!acc.find(item => item.type === 'header' && item.date === date)) {
+      acc.push({ type: 'header', date, id: `header-${date}` })
+    }
+    acc.push({type: 'trade', ...trade})
+    return acc
+  } , [] as any[])
+
   useEffect(() => {
     fetchTrades()
   }, [refreshTrigger])
@@ -64,7 +73,17 @@ export default function TradeList({ refreshTrigger, isAdmin = false }: TradeList
     }
   }
 
-  const renderItem = ({ item }: { item: Trade }) => {
+  const renderItem = ({ item }: { item: TradeListItem }) => {
+    if (item.type === 'header') {
+      const [year, month, day] = item.date.split('-')
+      return (
+          <View style={styles.dateHeader}>
+            <View style={styles.dateLine} />
+            <Text style={styles.dateText}>{month}/{day}</Text>
+            <View style={styles.dateLine}/>
+          </View>
+      )
+    }
     const isBuy = item.trade_type === 'buy'
 
     return (
@@ -141,7 +160,7 @@ export default function TradeList({ refreshTrigger, isAdmin = false }: TradeList
             </View>
         ) : (
             <FlatList
-                data={filteredTrades}
+                data={groupedData}
                 renderItem={renderItem}
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={styles.list}
@@ -307,5 +326,22 @@ const styles = StyleSheet.create({
   filterTabTextActive: {
     color: '#333',
     fontWeight: 'bold',
+  },
+  dateHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 10,
+  },
+  dateLine: {
+    flex: 1,
+    height: 0.5,
+    backgroundColor: '#ddd',
+  },
+  dateText: {
+    fontSize: 13,
+    color: '#999',
+    fontWeight: '600',
   },
 })
