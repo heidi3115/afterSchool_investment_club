@@ -20,6 +20,8 @@ export default function TradeList({ refreshTrigger, isAdmin = false }: TradeList
   const [trades, setTrades] = useState<Trade[]>([])
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<'all' | 'buy' | 'sell'>('all')
+  const [statsOpen, setStatsOpen] = useState(false)
+  const [statsPeriod, setStatsPeriod] = useState<'week' | 'month' | '3month' | 'all'>('week')
 
   const fetchTrades = async () => {
     setLoading(true)
@@ -45,6 +47,55 @@ export default function TradeList({ refreshTrigger, isAdmin = false }: TradeList
     if (filter === 'all') return true
     return trade.trade_type === filter
   })
+
+  const getStatsRange = () => {
+    const now = new Date()
+    if (statsPeriod === 'week') {
+      const start = new Date(now)
+      start.setDate(now.getDate() - 7)
+      return start.toISOString().slice(0, 10)
+    }
+    if (statsPeriod === 'month') {
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+    }
+    if (statsPeriod === '3month') {
+      const start = new Date(now)
+      start.setMonth(now.getMonth() - 3)
+      return start.toISOString().slice(0, 10)
+    }
+    return null
+  }
+
+  const statsData = (() => {
+    const startDate = getStatsRange()
+    const filtered = trades.filter(t => !startDate || t.trade_date >= startDate)
+
+    const byTicker: Record<string, {
+      stock_name: string
+      buyAmount: number
+      sellAmount: number
+      buyQty: number
+      sellQty: number
+    }> = {}
+
+    filtered.forEach(t => {
+      if (!byTicker[t.stock_name]) {
+        byTicker[t.stock_name] = { stock_name: t.stock_name, buyAmount: 0, sellAmount: 0, buyQty: 0, sellQty: 0 }
+      }
+      if (t.trade_type === 'buy') {
+        byTicker[t.stock_name].buyAmount += t.total_amount
+        byTicker[t.stock_name].buyQty += t.quantity
+      } else {
+        byTicker[t.stock_name].sellAmount += t.total_amount
+        byTicker[t.stock_name].sellQty += t.quantity
+      }
+    })
+
+    const totalBuy = filtered.filter(t => t.trade_type === 'buy').reduce((a, t) => a + t.total_amount, 0)
+    const totalSell = filtered.filter(t => t.trade_type === 'sell').reduce((a, t) => a + t.total_amount, 0)
+
+    return { byTicker: Object.values(byTicker), totalBuy, totalSell, count: filtered.length }
+  })()
 
   const groupedData = filteredTrades.reduce((acc, trade) => {
     const date = trade.trade_date
@@ -88,51 +139,39 @@ export default function TradeList({ refreshTrigger, isAdmin = false }: TradeList
 
     return (
         <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={styles.headerLeft}>
+          <View style={styles.cardRow}>
+            {/* 왼쪽: 종목 정보 + 메모 */}
+            <View style={styles.cardLeft}>
               <View style={[styles.badge, isBuy ? styles.buyBadge : styles.sellBadge]}>
                 <Text style={styles.badgeText}>{isBuy ? '매수' : '매도'}</Text>
               </View>
-              <Text style={styles.stockName}>{item.stock_name}</Text>
-              {item.stock_code && (
-                  <Text style={styles.stockCode}>({item.stock_code})</Text>
-              )}
+              <View>
+                <View style={styles.nameRow}>
+                  <Text style={styles.stockName}>{item.stock_name}</Text>
+                  {item.stock_code && (
+                      <Text style={styles.stockCode}>({item.stock_code})</Text>
+                  )}
+                </View>
+                {item.memo && (
+                    <Text style={styles.memoInline}>{item.memo}</Text>
+                )}
+              </View>
             </View>
-            {isAdmin && (
-                <TouchableOpacity
-                    onPress={() => handleDelete(item.id)}
-                    style={styles.deleteButton}
-                >
-                  <Text style={styles.deleteButtonText}>삭제</Text>
-                </TouchableOpacity>
-            )}
-          </View>
 
-          <View style={styles.cardBody}>
-            <View style={styles.row}>
-              <Text style={styles.label}>거래일</Text>
-              <Text style={styles.value}>{item.trade_date}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>수량</Text>
-              <Text style={styles.value}>{item.quantity.toLocaleString()}주</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>가격</Text>
-              <Text style={styles.value}>{item.price.toLocaleString('ko-KR')}원</Text>
-            </View>
-            <View style={[styles.row, styles.totalRow]}>
-              <Text style={styles.totalLabel}>총 거래금액</Text>
-              <Text style={[styles.totalValue, isBuy ? styles.buyColor : styles.sellColor]}>
+            {/* 오른쪽: 금액 정보 */}
+            <View style={styles.cardRight}>
+              <Text style={styles.tradeDetail}>
+                {item.quantity.toLocaleString()}주 · {item.price.toLocaleString('ko-KR')}원
+              </Text>
+              <Text style={[styles.totalAmount, isBuy ? styles.buyColor : styles.sellColor]}>
                 {item.total_amount.toLocaleString('ko-KR')}원
               </Text>
+              {isAdmin && (
+                  <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.deleteButton}>
+                    <Text style={styles.deleteButtonText}>삭제</Text>
+                  </TouchableOpacity>
+              )}
             </View>
-            {item.memo && (
-                <View style={styles.memoContainer}>
-                  <Text style={styles.memoLabel}>메모</Text>
-                  <Text style={styles.memoText}>{item.memo}</Text>
-                </View>
-            )}
           </View>
         </View>
     )
@@ -140,6 +179,83 @@ export default function TradeList({ refreshTrigger, isAdmin = false }: TradeList
 
   return (
       <View style={{ flex: 1 }}>
+        {/* 통계 패널 */}
+        <TouchableOpacity style={styles.statsToggle} onPress={() => setStatsOpen(v => !v)}>
+          <Text style={styles.statsToggleText}>기간별 통계</Text>
+          <Text style={styles.statsToggleIcon}>{statsOpen ? '▲' : '▼'}</Text>
+        </TouchableOpacity>
+
+        {statsOpen && (
+            <View style={styles.statsPanel}>
+              {/* 기간 선택 */}
+              <View style={styles.periodRow}>
+                {([
+                  { key: 'week', label: '이번 주' },
+                  { key: 'month', label: '이번 달' },
+                  { key: '3month', label: '3개월' },
+                  { key: 'all', label: '전체' },
+                ] as const).map(({ key, label }) => (
+                    <TouchableOpacity
+                        key={key}
+                        style={[styles.periodBtn, statsPeriod === key && styles.periodBtnActive]}
+                        onPress={() => setStatsPeriod(key)}
+                    >
+                      <Text style={[styles.periodBtnText, statsPeriod === key && styles.periodBtnTextActive]}>
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* 요약 카드 */}
+              <View style={styles.summaryRow}>
+                <View style={styles.summaryCard}>
+                  <Text style={styles.summaryLabel}>총 매수금액</Text>
+                  <Text style={[styles.summaryValue, styles.buyColor]}>
+                    {statsData.totalBuy.toLocaleString('ko-KR')}원
+                  </Text>
+                </View>
+                <View style={styles.summaryCard}>
+                  <Text style={styles.summaryLabel}>총 매도금액</Text>
+                  <Text style={[styles.summaryValue, styles.sellColor]}>
+                    {statsData.totalSell.toLocaleString('ko-KR')}원
+                  </Text>
+                </View>
+                <View style={styles.summaryCard}>
+                  <Text style={styles.summaryLabel}>거래 횟수</Text>
+                  <Text style={styles.summaryValue}>{statsData.count}회</Text>
+                </View>
+              </View>
+
+              {/* 종목별 테이블 */}
+              <View style={styles.tickerTable}>
+                <View style={styles.tickerHeader}>
+                  <Text style={[styles.tickerCell, { flex: 2 }]}>종목</Text>
+                  <Text style={[styles.tickerCell, styles.tickerRight]}>매수</Text>
+                  <Text style={[styles.tickerCell, styles.tickerRight]}>매도</Text>
+                  <Text style={[styles.tickerCell, styles.tickerRight]}>매수량</Text>
+                  <Text style={[styles.tickerCell, styles.tickerRight]}>매도량</Text>
+                </View>
+                {statsData.byTicker.map(t => (
+                    <View key={t.stock_name} style={styles.tickerRow}>
+                      <Text style={[styles.tickerCell, { flex: 2 }]}>{t.stock_name}</Text>
+                      <Text style={[styles.tickerCell, styles.tickerRight, styles.buyColor]}>
+                        {t.buyAmount > 0 ? t.buyAmount.toLocaleString('ko-KR') : '-'}
+                      </Text>
+                      <Text style={[styles.tickerCell, styles.tickerRight, styles.sellColor]}>
+                        {t.sellAmount > 0 ? t.sellAmount.toLocaleString('ko-KR') : '-'}
+                      </Text>
+                      <Text style={[styles.tickerCell, styles.tickerRight]}>
+                        {t.buyQty > 0 ? `${t.buyQty}주` : '-'}
+                      </Text>
+                      <Text style={[styles.tickerCell, styles.tickerRight]}>
+                        {t.sellQty > 0 ? `${t.sellQty}주` : '-'}
+                      </Text>
+                    </View>
+                ))}
+              </View>
+            </View>
+        )}
         <View style={styles.filterContainer}>
           {(['all', 'buy', 'sell'] as const).map((type) => (
               <TouchableOpacity
@@ -174,40 +290,71 @@ export default function TradeList({ refreshTrigger, isAdmin = false }: TradeList
 }
 
 const styles = StyleSheet.create({
-  list: {
-    padding: 16,
-    maxWidth: 800,
-    width: '100%',
-    alignSelf: 'center',
-  },
   card: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    marginBottom: 16,
+    borderRadius: 10,
+    marginBottom: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  cardHeader: {
+  cardRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
   },
-  headerLeft: {
+  cardLeft: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    flex: 1,
+    gap: 10,
+    flexShrink: 1,
+    marginRight: 12,
+  },
+  cardRight: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
+  nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    gap: 4,
+  },
+  stockName: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  stockCode: {
+    fontSize: 12,
+    color: '#999',
+  },
+  tradeDetail: {
+    fontSize: 13,
+    color: '#666',
+    textAlign: 'right',
+  },
+  totalAmount: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    textAlign: 'right',
+  },
+  memoInline: {
+    fontSize: 12,
+    color: '#aaa',
+    marginTop: 3,
+    flexShrink: 1,
+    flexWrap: 'wrap',
   },
   badge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 6,
-    marginRight: 12,
+    marginTop: 2,
   },
   buyBadge: {
     backgroundColor: '#ffebee',
@@ -216,83 +363,31 @@ const styles = StyleSheet.create({
     backgroundColor: '#e3f2fd',
   },
   badgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 'bold',
-  },
-  stockName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  stockCode: {
-    fontSize: 14,
-    color: '#666',
-    marginLeft: 8,
   },
   deleteButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     backgroundColor: '#ff5252',
     borderRadius: 6,
   },
   deleteButtonText: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
-  cardBody: {
+  list: {
     padding: 16,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  label: {
-    fontSize: 14,
-    color: '#666',
-  },
-  value: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-  },
-  totalRow: {
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    marginTop: 4,
-  },
-  totalLabel: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  totalValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    maxWidth: 800,
+    width: '100%',
+    alignSelf: 'center',
   },
   buyColor: {
     color: '#ef5350',
   },
   sellColor: {
     color: '#42a5f5',
-  },
-  memoContainer: {
-    marginTop: 12,
-    padding: 12,
-    backgroundColor: '#f9f9f9',
-    borderRadius: 8,
-  },
-  memoLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 4,
-  },
-  memoText: {
-    fontSize: 14,
-    color: '#333',
-    lineHeight: 20,
   },
   emptyContainer: {
     flex: 1,
@@ -343,5 +438,110 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#999',
     fontWeight: '600',
+  },
+  statsToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: '#406093',
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+  },
+  statsToggleText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  statsToggleIcon: {
+    fontSize: 12,
+    color: '#666',
+  },
+  statsPanel: {
+    backgroundColor: '#f9f9f9',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#eee',
+  },
+  periodRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  periodBtn: {
+    flex: 1,
+    paddingVertical: 7,
+    alignItems: 'center',
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    borderWidth: 0.5,
+    borderColor: '#ddd',
+  },
+  periodBtnActive: {
+    backgroundColor: '#333',
+    borderColor: '#333',
+  },
+  periodBtnText: {
+    fontSize: 12,
+    color: '#666',
+  },
+  periodBtnTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  summaryCard: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 0.5,
+    borderColor: '#eee',
+  },
+  summaryLabel: {
+    fontSize: 11,
+    color: '#999',
+    marginBottom: 4,
+  },
+  summaryValue: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  tickerTable: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 0.5,
+    borderColor: '#eee',
+  },
+  tickerHeader: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#f5f5f5',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#eee',
+  },
+  tickerRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#f0f0f0',
+  },
+  tickerCell: {
+    flex: 1,
+    fontSize: 12,
+    color: '#333',
+  },
+  tickerRight: {
+    textAlign: 'right',
   },
 })
