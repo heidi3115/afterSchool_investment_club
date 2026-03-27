@@ -20,7 +20,7 @@ export default function TradeList({ refreshTrigger, isAdmin = false }: TradeList
   const [trades, setTrades] = useState<Trade[]>([])
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<'all' | 'buy' | 'sell'>('all')
-  const [statsOpen, setStatsOpen] = useState(false)
+  const [statsOpen, setStatsOpen] = useState(true)
   const [statsPeriod, setStatsPeriod] = useState<'week' | 'month' | '3month' | 'all'>('week')
 
   const fetchTrades = async () => {
@@ -456,7 +456,7 @@ const styles = StyleSheet.create({
   },
   statsToggleIcon: {
     fontSize: 12,
-    color: '#666',
+    color: '#fff',
   },
   statsPanel: {
     backgroundColor: '#f9f9f9',
