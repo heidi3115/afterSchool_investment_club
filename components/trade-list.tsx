@@ -179,112 +179,118 @@ export default function TradeList({ refreshTrigger, isAdmin = false }: TradeList
 
   return (
       <View style={{ flex: 1 }}>
-        {/* 통계 패널 */}
-        <TouchableOpacity style={styles.statsToggle} onPress={() => setStatsOpen(v => !v)}>
-          <Text style={styles.statsToggleText}>기간별 통계</Text>
-          <Text style={styles.statsToggleIcon}>{statsOpen ? '▲' : '▼'}</Text>
-        </TouchableOpacity>
+        <FlatList
+            data={groupedData}
+            renderItem={renderItem}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.list}
+            refreshControl={
+              <RefreshControl refreshing={loading} onRefresh={fetchTrades} />
+            }
+            ListHeaderComponent={
+              <>
+                {/* 통계 패널 */}
+                <TouchableOpacity style={styles.statsToggle} onPress={() => setStatsOpen(v => !v)}>
+                  <Text style={styles.statsToggleText}>기간별 통계</Text>
+                  <Text style={styles.statsToggleIcon}>{statsOpen ? '▲' : '▼'}</Text>
+                </TouchableOpacity>
 
-        {statsOpen && (
-            <View style={styles.statsPanel}>
-              {/* 기간 선택 */}
-              <View style={styles.periodRow}>
-                {([
-                  { key: 'week', label: '이번 주' },
-                  { key: 'month', label: '이번 달' },
-                  { key: '3month', label: '3개월' },
-                  { key: 'all', label: '전체' },
-                ] as const).map(({ key, label }) => (
-                    <TouchableOpacity
-                        key={key}
-                        style={[styles.periodBtn, statsPeriod === key && styles.periodBtnActive]}
-                        onPress={() => setStatsPeriod(key)}
-                    >
-                      <Text style={[styles.periodBtnText, statsPeriod === key && styles.periodBtnTextActive]}>
-                        {label}
-                      </Text>
-                    </TouchableOpacity>
-                ))}
-              </View>
+                {statsOpen && (
+                    <View style={styles.statsPanel}>
+                      {/* 기간 선택 버튼들 */}
+                      <View style={styles.periodRow}>
+                        {([
+                          { key: 'week', label: '이번 주' },
+                          { key: 'month', label: '이번 달' },
+                          { key: '3month', label: '3개월' },
+                          { key: 'all', label: '전체' },
+                        ] as const).map(({ key, label }) => (
+                            <TouchableOpacity
+                                key={key}
+                                style={[styles.periodBtn, statsPeriod === key && styles.periodBtnActive]}
+                                onPress={() => setStatsPeriod(key)}
+                            >
+                              <Text style={[styles.periodBtnText, statsPeriod === key && styles.periodBtnTextActive]}>
+                                {label}
+                              </Text>
+                            </TouchableOpacity>
+                        ))}
+                      </View>
 
-              {/* 요약 카드 */}
-              <View style={styles.summaryRow}>
-                <View style={styles.summaryCard}>
-                  <Text style={styles.summaryLabel}>총 매수금액</Text>
-                  <Text style={[styles.summaryValue, styles.buyColor]}>
-                    {statsData.totalBuy.toLocaleString('ko-KR')}원
-                  </Text>
-                </View>
-                <View style={styles.summaryCard}>
-                  <Text style={styles.summaryLabel}>총 매도금액</Text>
-                  <Text style={[styles.summaryValue, styles.sellColor]}>
-                    {statsData.totalSell.toLocaleString('ko-KR')}원
-                  </Text>
-                </View>
-                <View style={styles.summaryCard}>
-                  <Text style={styles.summaryLabel}>거래 횟수</Text>
-                  <Text style={styles.summaryValue}>{statsData.count}회</Text>
-                </View>
-              </View>
+                      {/* 요약 카드 */}
+                      <View style={styles.summaryRow}>
+                        <View style={styles.summaryCard}>
+                          <Text style={styles.summaryLabel}>총 매수금액</Text>
+                          <Text style={[styles.summaryValue, styles.buyColor]}>
+                            {statsData.totalBuy.toLocaleString('ko-KR')}원
+                          </Text>
+                        </View>
+                        <View style={styles.summaryCard}>
+                          <Text style={styles.summaryLabel}>총 매도금액</Text>
+                          <Text style={[styles.summaryValue, styles.sellColor]}>
+                            {statsData.totalSell.toLocaleString('ko-KR')}원
+                          </Text>
+                        </View>
+                        <View style={styles.summaryCard}>
+                          <Text style={styles.summaryLabel}>거래 횟수</Text>
+                          <Text style={styles.summaryValue}>{statsData.count}회</Text>
+                        </View>
+                      </View>
 
-              {/* 종목별 테이블 */}
-              <View style={styles.tickerTable}>
-                <View style={styles.tickerHeader}>
-                  <Text style={[styles.tickerCell, { flex: 2 }]}>종목</Text>
-                  <Text style={[styles.tickerCell, styles.tickerRight]}>매수</Text>
-                  <Text style={[styles.tickerCell, styles.tickerRight]}>매도</Text>
-                  <Text style={[styles.tickerCell, styles.tickerRight]}>매수량</Text>
-                  <Text style={[styles.tickerCell, styles.tickerRight]}>매도량</Text>
-                </View>
-                {statsData.byTicker.map(t => (
-                    <View key={t.stock_name} style={styles.tickerRow}>
-                      <Text style={[styles.tickerCell, { flex: 2 }]}>{t.stock_name}</Text>
-                      <Text style={[styles.tickerCell, styles.tickerRight, styles.buyColor]}>
-                        {t.buyAmount > 0 ? t.buyAmount.toLocaleString('ko-KR') : '-'}
-                      </Text>
-                      <Text style={[styles.tickerCell, styles.tickerRight, styles.sellColor]}>
-                        {t.sellAmount > 0 ? t.sellAmount.toLocaleString('ko-KR') : '-'}
-                      </Text>
-                      <Text style={[styles.tickerCell, styles.tickerRight]}>
-                        {t.buyQty > 0 ? `${t.buyQty}주` : '-'}
-                      </Text>
-                      <Text style={[styles.tickerCell, styles.tickerRight]}>
-                        {t.sellQty > 0 ? `${t.sellQty}주` : '-'}
-                      </Text>
+                      {/* 종목별 테이블 */}
+                      <View style={styles.tickerTable}>
+                        <View style={styles.tickerHeader}>
+                          <Text style={[styles.tickerCell, { flex: 2 }]}>종목</Text>
+                          <Text style={[styles.tickerCell, styles.tickerRight]}>매수</Text>
+                          <Text style={[styles.tickerCell, styles.tickerRight]}>매도</Text>
+                          <Text style={[styles.tickerCell, styles.tickerRight]}>매수량</Text>
+                          <Text style={[styles.tickerCell, styles.tickerRight]}>매도량</Text>
+                        </View>
+                        {statsData.byTicker.map(t => (
+                            <View key={t.stock_name} style={styles.tickerRow}>
+                              <Text style={[styles.tickerCell, { flex: 2 }]}>{t.stock_name}</Text>
+                              <Text style={[styles.tickerCell, styles.tickerRight, styles.buyColor]}>
+                                {t.buyAmount > 0 ? t.buyAmount.toLocaleString('ko-KR') : '-'}
+                              </Text>
+                              <Text style={[styles.tickerCell, styles.tickerRight, styles.sellColor]}>
+                                {t.sellAmount > 0 ? t.sellAmount.toLocaleString('ko-KR') : '-'}
+                              </Text>
+                              <Text style={[styles.tickerCell, styles.tickerRight]}>
+                                {t.buyQty > 0 ? `${t.buyQty}주` : '-'}
+                              </Text>
+                              <Text style={[styles.tickerCell, styles.tickerRight]}>
+                                {t.sellQty > 0 ? `${t.sellQty}주` : '-'}
+                              </Text>
+                            </View>
+                        ))}
+                      </View>
                     </View>
-                ))}
-              </View>
-            </View>
-        )}
-        <View style={styles.filterContainer}>
-          {(['all', 'buy', 'sell'] as const).map((type) => (
-              <TouchableOpacity
-                  key={type}
-                  style={[styles.filterTab, filter === type && styles.filterTabActive]}
-                  onPress={() => setFilter(type)}
-              >
-                <Text style={[styles.filterTabText, filter === type && styles.filterTabTextActive]}>
-                  {type === 'all' ? '전체' : type === 'buy' ? '매수' : '매도'}
-                </Text>
-              </TouchableOpacity>
-          ))}
-        </View>
+                )}
 
-        {filteredTrades.length === 0 && !loading ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>등록된 매매일지가 없습니다.</Text>
-            </View>
-        ) : (
-            <FlatList
-                data={groupedData}
-                renderItem={renderItem}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.list}
-                refreshControl={
-                  <RefreshControl refreshing={loading} onRefresh={fetchTrades} />
-                }
-            />
-        )}
+                {/* 필터 탭 */}
+                <View style={styles.filterContainer}>
+                  {(['all', 'buy', 'sell'] as const).map((type) => (
+                      <TouchableOpacity
+                          key={type}
+                          style={[styles.filterTab, filter === type && styles.filterTabActive]}
+                          onPress={() => setFilter(type)}
+                      >
+                        <Text style={[styles.filterTabText, filter === type && styles.filterTabTextActive]}>
+                          {type === 'all' ? '전체' : type === 'buy' ? '매수' : '매도'}
+                        </Text>
+                      </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            }
+            ListEmptyComponent={
+              !loading ? (
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>등록된 매매일지가 없습니다.</Text>
+                  </View>
+              ) : null
+            }
+        />
       </View>
   )
 }
