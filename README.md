@@ -8,6 +8,10 @@
 - 종목 별 매수/매도 수량 및 금액 조회
 - 반응형 디자인 (모바일/태블릿/데스크톱)
 
+- 매수 / 매도 사유 AI 도움봇 기능 추가 (2026.07.03)
+<img width="455" height="215" alt="image" src="https://github.com/user-attachments/assets/73bf552d-e03b-4fa8-b540-5bdc1aeb934f" />
+
+
 ## 실행 방법
 
 ```bash
