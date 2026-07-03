@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react'
 import {
-  View,
-  Text,
-  FlatList,
-  StyleSheet,
-  TouchableOpacity,
-  Alert,
-  RefreshControl,
+    View,
+    Text,
+    FlatList,
+    StyleSheet,
+    TouchableOpacity,
+    Alert,
+    RefreshControl,
+    ActivityIndicator,
 } from 'react-native'
-import {Trade, TradeListItem} from '../types/trade'
-import { supabase } from '../lib/supabase'
+import {Trade, TradeListItem} from '@/types/trade'
+import { supabase } from '@/lib/supabase'
 
 interface TradeListProps {
   refreshTrigger?: number
@@ -22,6 +23,10 @@ export default function TradeList({ refreshTrigger, isAdmin = false }: TradeList
   const [filter, setFilter] = useState<'all' | 'buy' | 'sell'>('all')
   const [statsOpen, setStatsOpen] = useState(true)
   const [statsPeriod, setStatsPeriod] = useState<'week' | 'month' | '3month' | 'all'>('week')
+
+  const [expandedTradeId, setExpandedTradeId] = useState<string | null>(null)
+  const [explainCache, setExplainCache] = useState<Record<string, string>>({})
+  const [explainLoadingId, setExplainLoadingId] = useState<string | null>(null)
 
   const fetchTrades = async () => {
     setLoading(true)
@@ -124,6 +129,56 @@ export default function TradeList({ refreshTrigger, isAdmin = false }: TradeList
     }
   }
 
+  const handleExplain = async (item: Trade) => {
+    // 이미 펼쳐진 카드를 다시 누르면 접음
+    if (expandedTradeId === item.id) {
+      setExpandedTradeId(null)
+      return
+    }
+
+    setExpandedTradeId(item.id)
+
+    if (explainCache[item.id]) {
+      return
+    }
+
+    setExplainLoadingId(item.id)
+
+    try {
+      const res = await fetch('https://investment-bot-eight.vercel.app/api/explain-trade', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          stockName: item.stock_name,
+          stockCode: item.stock_code,
+          action: item.trade_type === 'buy' ? '매수' : '매도',
+          price: item.price,
+          quantity: item.quantity,
+          date: item.trade_date,
+          memo: item.memo,
+        }),
+      })
+
+      if (!res.ok) throw new Error('요청 실패!')
+
+      const data = await res.json()
+      setExplainCache((prev) => ({
+        ...prev,
+        [item.id]: data.explanation || '설명을 가져오지 못했어요!',
+      }))
+    } catch (err) {
+      console.log(err)
+      setExplainCache((prev) => ({
+        ...prev,
+        [item.id]: '설명을 불러오는 중 오류가 발생했어요.',
+      }))
+    } finally {
+      setExplainLoadingId(null)
+    }
+  }
+
   const renderItem = ({ item }: { item: TradeListItem }) => {
     if (item.type === 'header') {
       const [year, month, day] = item.date.split('-')
@@ -153,7 +208,12 @@ export default function TradeList({ refreshTrigger, isAdmin = false }: TradeList
                   )}
                 </View>
                 {item.memo && (
-                    <Text style={styles.memoInline}>{item.memo}</Text>
+                    <View style={styles.memoRow}>
+                      <Text style={styles.memoInline}>{item.memo}</Text>
+                      <TouchableOpacity onPress={() => handleExplain(item)} style={styles.explainButton}>
+                        <Text style={styles.explainButtonText}>!</Text>
+                      </TouchableOpacity>
+                    </View>
                 )}
               </View>
             </View>
@@ -173,6 +233,18 @@ export default function TradeList({ refreshTrigger, isAdmin = false }: TradeList
               )}
             </View>
           </View>
+
+          {/* 말풍선 - 이 카드가 펼쳐진 상태일 때만 */}
+          {expandedTradeId === item.id && (
+              <View style={styles.bubble}>
+                <View style={styles.bubbleArrow} />
+                {explainLoadingId === item.id ? (
+                    <ActivityIndicator size="small" color="#3a6ea5" />
+                ) : (
+                    <Text style={styles.bubbleText}>{explainCache[item.id]}</Text>
+                )}
+              </View>
+          )}
         </View>
     )
   }
@@ -352,7 +424,6 @@ const styles = StyleSheet.create({
   memoInline: {
     fontSize: 12,
     color: '#aaa',
-    marginTop: 3,
     flexShrink: 1,
     flexWrap: 'wrap',
   },
@@ -549,5 +620,50 @@ const styles = StyleSheet.create({
   },
   tickerRight: {
     textAlign: 'right',
+  },
+  memoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 3,
+  },
+  explainButton: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#e3ecf7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  explainButtonText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#3a6ea5',
+  },
+  bubble: {
+    marginTop: 10,
+    backgroundColor: '#f0f4f9',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#d5e0ed',
+    padding: 12,
+    position: 'relative',
+  },
+  bubbleArrow: {
+    position: 'absolute',
+    top: -6,
+    left: 20,
+    width: 12,
+    height: 12,
+    backgroundColor: '#f0f4f9',
+    borderLeftWidth: 1,
+    borderTopWidth: 1,
+    borderColor: '#d5e0ed',
+    transform: [{ rotate: '45deg' }],
+  },
+  bubbleText: {
+    fontSize: 13,
+    color: '#3a4a5c',
+    lineHeight: 20,
   },
 })
